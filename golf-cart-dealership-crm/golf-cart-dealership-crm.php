@@ -238,12 +238,17 @@ class GC_Dealership_CRM {
     }
 
     public function enqueue_assets() {
-        if (!is_singular()) {
-            return;
+        $load_for_shortcode = false;
+        if (is_singular()) {
+            global $post;
+            if ($post && has_shortcode($post->post_content, 'gc_dealership_crm')) {
+                $load_for_shortcode = true;
+            }
         }
 
-        global $post;
-        if (!$post || !has_shortcode($post->post_content, 'gc_dealership_crm')) {
+        $load_for_product_cf7_modal = function_exists('is_product') && is_product() && class_exists('WPCF7_ContactForm') && (int) get_option('gc_crm_cf7_form_id', 0) > 0;
+
+        if (!$load_for_shortcode && !$load_for_product_cf7_modal) {
             return;
         }
 
@@ -732,6 +737,15 @@ class GC_Dealership_CRM {
     }
 
     public function render_wc_button() {
+        if (!class_exists('WPCF7_ContactForm')) {
+            return;
+        }
+
+        $selected_cf7 = (int) get_option('gc_crm_cf7_form_id', 0);
+        if ($selected_cf7 <= 0) {
+            return;
+        }
+
         echo '<button type="button" class="button alt" id="gc-open-wc-inquiry">Inquire for More Information</button>';
     }
 
@@ -739,39 +753,26 @@ class GC_Dealership_CRM {
         if (!function_exists('is_product') || !is_product()) {
             return;
         }
+
+        if (!class_exists('WPCF7_ContactForm')) {
+            return;
+        }
+
+        $selected_cf7 = (int) get_option('gc_crm_cf7_form_id', 0);
+        if ($selected_cf7 <= 0) {
+            return;
+        }
         ?>
         <div class="gc-modal" id="gc-wc-inquiry-modal">
             <div class="gc-modal-content">
                 <button class="gc-close" type="button" data-close="#gc-wc-inquiry-modal">&times;</button>
                 <h3>Inquire for More Information</h3>
-                <form id="gc-wc-inquiry-form">
-                    <label for="gc-wc-first-name">First Name</label>
-                    <input type="text" id="gc-wc-first-name" name="first_name" required>
-
-                    <label for="gc-wc-last-name">Last Name</label>
-                    <input type="text" id="gc-wc-last-name" name="last_name" required>
-
-                    <label for="gc-wc-email">Email</label>
-                    <input type="email" id="gc-wc-email" name="email" required>
-
-                    <label for="gc-wc-phone">Phone</label>
-                    <input type="text" id="gc-wc-phone" name="phone">
-
-                    <label for="gc-wc-message">Message</label>
-                    <textarea id="gc-wc-message" name="message" rows="4"></textarea>
-
-                    <div class="gc-actions">
-                        <button type="submit" class="gc-btn">Submit Inquiry</button>
-                        <button type="button" class="gc-btn" data-close="#gc-wc-inquiry-modal">Close</button>
-                    </div>
-                </form>
+                <?php echo do_shortcode('[contact-form-7 id="' . $selected_cf7 . '"]'); ?>
+                <div class="gc-actions">
+                    <button type="button" class="gc-btn" data-close="#gc-wc-inquiry-modal">Close</button>
+                </div>
             </div>
         </div>
-        <script>
-            window.gcWcProductId = <?php echo (int) get_the_ID(); ?>;
-            window.gcWcAjaxNonce = '<?php echo esc_js(wp_create_nonce(self::NONCE_ACTION)); ?>';
-            window.gcWcAjaxUrl = '<?php echo esc_url(admin_url('admin-ajax.php')); ?>';
-        </script>
         <?php
     }
 
