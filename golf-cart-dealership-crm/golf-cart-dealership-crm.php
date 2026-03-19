@@ -370,7 +370,7 @@ class GC_Dealership_CRM {
                         <input type="text" id="gc-todo-text" placeholder="New to-do item">
                         <button type="button" class="gc-btn" id="gc-add-todo">Add Item</button>
                     </div>
-                    <table class="gc-table">
+                    <table class="gc-table gc-todo-table">
                         <thead><tr><th>Item</th><th>Action</th></tr></thead>
                         <tbody>
                         <?php foreach ($todos as $todo) : ?>
@@ -906,7 +906,10 @@ class GC_Dealership_CRM {
         if ($selected_cf7 <= 0) {
             return;
         }
+        $product_id = get_the_ID();
+        $product_title = $product_id ? get_the_title($product_id) : '';
         ?>
+        <div id="gc-wc-context" data-product-id="<?php echo esc_attr((int) $product_id); ?>" data-product-title="<?php echo esc_attr($product_title); ?>"></div>
         <div class="gc-modal" id="gc-wc-inquiry-modal">
             <div class="gc-modal-content">
                 <button class="gc-close" type="button" data-close="#gc-wc-inquiry-modal">&times;</button>
@@ -964,12 +967,17 @@ class GC_Dealership_CRM {
         if ($container_post_id <= 0 && method_exists($submission, 'get_meta')) {
             $container_post_id = absint($submission->get_meta('container_post_id'));
         }
+        $posted_product_id = absint($posted_data['gc_product_id'] ?? 0);
+        $posted_product_title = sanitize_text_field($posted_data['gc_product_title'] ?? '');
         $message = sanitize_textarea_field($posted_data['your-message'] ?? $posted_data['message'] ?? '');
         $product_id = 0;
         $source = 'cf7';
 
         if ($container_post_id > 0 && get_post_type($container_post_id) === 'product') {
             $product_id = $container_post_id;
+            $source = 'woocommerce';
+        } elseif ($posted_product_id > 0 && get_post_type($posted_product_id) === 'product') {
+            $product_id = $posted_product_id;
             $source = 'woocommerce';
         }
 
@@ -988,7 +996,18 @@ class GC_Dealership_CRM {
             return;
         }
 
-        $this->create_lead($first_name, $last_name, $email, $phone, 'new_leads', $source, $message, $product_id);
+        $lead_id = $this->create_lead($first_name, $last_name, $email, $phone, 'new_leads', $source, $message, $product_id);
+
+        if ($lead_id > 0 && $product_id > 0 && $posted_product_title !== '') {
+            global $wpdb;
+            $wpdb->update(
+                $wpdb->prefix . 'gc_crm_leads',
+                ['product_name' => $posted_product_title],
+                ['id' => $lead_id],
+                ['%s'],
+                ['%d']
+            );
+        }
     }
 }
 

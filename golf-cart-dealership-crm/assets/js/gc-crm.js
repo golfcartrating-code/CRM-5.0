@@ -26,34 +26,47 @@ jQuery(function ($) {
     function submitCsvExport(actionName) {
         var ajaxUrl = (window.gcCrmData && gcCrmData.ajaxurl) ? gcCrmData.ajaxurl : (window.gcWcAjaxUrl || ajaxurl);
         var nonce = (window.gcCrmData && gcCrmData.nonce) ? gcCrmData.nonce : '';
-        var frameName = 'gc-crm-csv-download-frame';
-        var frame = $('#' + frameName);
-        if (!frame.length) {
-            frame = $('<iframe>', {
-                id: frameName,
-                name: frameName,
-                style: 'display:none;'
-            });
-            $('body').append(frame);
+        var url = ajaxUrl + '?action=' + encodeURIComponent(actionName) + '&nonce=' + encodeURIComponent(nonce) + '&download=1&ts=' + Date.now();
+        var link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setTimeout(function () {
+            location.reload();
+        }, 1000);
+    }
+
+    function injectWcProductIntoCf7() {
+        var context = $('#gc-wc-context');
+        if (!context.length) {
+            return;
         }
 
-        var form = $('<form>', {
-            method: 'POST',
-            action: ajaxUrl,
-            target: frameName,
-            style: 'display:none;',
-            enctype: 'application/x-www-form-urlencoded'
-        });
+        var productId = String(context.data('productId') || '');
+        var productTitle = String(context.data('productTitle') || '');
+        if (!productId) {
+            return;
+        }
 
-        form.append($('<input>', { type: 'hidden', name: 'action', value: actionName }));
-        form.append($('<input>', { type: 'hidden', name: 'nonce', value: nonce }));
-        form.append($('<input>', { type: 'hidden', name: 'download', value: '1' }));
-        $('body').append(form);
-        form.trigger('submit');
-        setTimeout(function () {
-            form.remove();
-            location.reload();
-        }, 600);
+        $('#gc-wc-inquiry-modal form.wpcf7-form').each(function () {
+            var $form = $(this);
+
+            if (!$form.find('input[name="gc_product_id"]').length) {
+                $form.append($('<input>', { type: 'hidden', name: 'gc_product_id', value: productId }));
+            } else {
+                $form.find('input[name="gc_product_id"]').val(productId);
+            }
+
+            if (!$form.find('input[name="gc_product_title"]').length) {
+                $form.append($('<input>', { type: 'hidden', name: 'gc_product_title', value: productTitle }));
+            } else {
+                $form.find('input[name="gc_product_title"]').val(productTitle);
+            }
+        });
     }
 
     $(document).on('click', '.gc-tab', function () {
@@ -278,7 +291,12 @@ jQuery(function ($) {
     });
 
     $(document).on('click', '#gc-open-wc-inquiry', function () {
+        injectWcProductIntoCf7();
         openModal('#gc-wc-inquiry-modal');
+    });
+
+    $(document).on('focus', '#gc-wc-inquiry-modal form.wpcf7-form input, #gc-wc-inquiry-modal form.wpcf7-form textarea', function () {
+        injectWcProductIntoCf7();
     });
 
     $(document).on('submit', '#gc-wc-inquiry-form', function (e) {
