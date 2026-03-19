@@ -61,6 +61,7 @@ jQuery(function ($) {
             $('#gc-lead-email').val(lead.email);
             $('#gc-lead-phone').val(lead.phone);
             $('#gc-lead-status').val(lead.status);
+            $('#gc-lead-product-id').val(lead.product_id || '0');
 
             var notesHtml = '';
             $.each(res.data.notes || [], function (_, note) {
@@ -83,7 +84,8 @@ jQuery(function ($) {
             last_name: $('#gc-lead-last-name').val(),
             email: $('#gc-lead-email').val(),
             phone: $('#gc-lead-phone').val(),
-            status: $('#gc-lead-status').val()
+            status: $('#gc-lead-status').val(),
+            product_id: $('#gc-lead-product-id').val()
         }, function (res) {
             if (res.success) {
                 location.reload();
@@ -214,7 +216,9 @@ jQuery(function ($) {
         }, function (res) {
             if (res.success) {
                 downloadCsv(res.data.filename, res.data.content);
-                location.reload();
+                setTimeout(function () {
+                    location.reload();
+                }, 600);
             }
         });
     });
@@ -226,7 +230,9 @@ jQuery(function ($) {
         }, function (res) {
             if (res.success) {
                 downloadCsv(res.data.filename, res.data.content);
-                location.reload();
+                setTimeout(function () {
+                    location.reload();
+                }, 600);
             }
         });
     });

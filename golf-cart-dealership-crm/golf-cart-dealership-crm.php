@@ -147,6 +147,34 @@ class GC_Dealership_CRM {
         return $status;
     }
 
+    private function get_product_options() {
+        if (!function_exists('wc_get_products')) {
+            return [];
+        }
+
+        $products = wc_get_products([
+            'status' => 'publish',
+            'limit'  => -1,
+            'orderby'=> 'title',
+            'order'  => 'ASC',
+            'return' => 'objects',
+        ]);
+
+        $options = [];
+        foreach ($products as $product) {
+            if (!$product || !method_exists($product, 'get_id')) {
+                continue;
+            }
+
+            $options[] = [
+                'id'   => (int) $product->get_id(),
+                'name' => sanitize_text_field($product->get_name()),
+            ];
+        }
+
+        return $options;
+    }
+
     private function create_contact_if_missing($first_name, $last_name, $email, $phone) {
         global $wpdb;
         $contacts_table = $wpdb->prefix . 'gc_crm_contacts';
@@ -317,6 +345,7 @@ class GC_Dealership_CRM {
 
         $selected_cf7 = (int) get_option('gc_crm_cf7_form_id', 0);
         $notification_email = sanitize_email(get_option('gc_crm_notification_email', get_option('admin_email')));
+        $product_options = $this->get_product_options();
 
         ob_start();
         ?>
@@ -465,6 +494,14 @@ class GC_Dealership_CRM {
                         <option value="lost">Lost</option>
                     </select>
 
+                    <label for="gc-lead-product-id">Product of Interest</label>
+                    <select id="gc-lead-product-id" name="product_id">
+                        <option value="0">No Product Selected</option>
+                        <?php foreach ($product_options as $product_option) : ?>
+                            <option value="<?php echo esc_attr($product_option['id']); ?>"><?php echo esc_html($product_option['name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+
                     <div class="gc-actions">
                         <button type="submit" class="gc-btn">Save</button>
                         <button type="button" class="gc-btn gc-btn-danger" id="gc-delete-lead">Delete</button>
@@ -524,12 +561,13 @@ class GC_Dealership_CRM {
         $email = sanitize_email(wp_unslash($_POST['email'] ?? ''));
         $phone = sanitize_text_field(wp_unslash($_POST['phone'] ?? ''));
         $status = $this->normalize_status($_POST['status'] ?? 'new_leads');
+        $product_id = absint($_POST['product_id'] ?? 0);
 
         if (empty($first_name) || empty($last_name) || empty($email)) {
             wp_send_json_error(['message' => 'Required fields missing']);
         }
 
-        $lead_id = $this->create_lead($first_name, $last_name, $email, $phone, $status, 'manual');
+        $lead_id = $this->create_lead($first_name, $last_name, $email, $phone, $status, 'manual', '', $product_id);
         wp_send_json_success(['lead_id' => $lead_id]);
     }
 
@@ -546,6 +584,8 @@ class GC_Dealership_CRM {
         $email = sanitize_email(wp_unslash($_POST['email'] ?? ''));
         $phone = sanitize_text_field(wp_unslash($_POST['phone'] ?? ''));
         $status = $this->normalize_status($_POST['status'] ?? 'new_leads');
+        $product_id = absint($_POST['product_id'] ?? 0);
+        $product_name = $product_id > 0 ? sanitize_text_field(get_the_title($product_id)) : '';
 
         $leads_table = $wpdb->prefix . 'gc_crm_leads';
         $lead = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$leads_table} WHERE id = %d", $lead_id));
@@ -564,11 +604,26 @@ class GC_Dealership_CRM {
                 'email' => $email,
                 'phone' => $phone,
                 'status' => $status,
+                'product_id' => $product_id > 0 ? $product_id : null,
+                'product_name' => $product_name,
             ],
             ['id' => $lead_id],
-            ['%d', '%s', '%s', '%s', '%s', '%s'],
+            ['%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s'],
             ['%d']
         );
+
+        $product_links_table = $wpdb->prefix . 'gc_crm_product_links';
+        $wpdb->delete($product_links_table, ['lead_id' => $lead_id], ['%d']);
+        if ($product_id > 0) {
+            $wpdb->insert(
+                $product_links_table,
+                [
+                    'lead_id' => $lead_id,
+                    'product_id' => $product_id,
+                ],
+                ['%d', '%d']
+            );
+        }
 
         wp_send_json_success(['lead_id' => $lead_id]);
     }
@@ -884,6 +939,9 @@ class GC_Dealership_CRM {
 
         $posted_data = $submission->get_posted_data();
         $container_post_id = absint($posted_data['_wpcf7_container_post'] ?? 0);
+        if ($container_post_id <= 0 && method_exists($submission, 'get_meta')) {
+            $container_post_id = absint($submission->get_meta('container_post_id'));
+        }
         $message = sanitize_textarea_field($posted_data['your-message'] ?? $posted_data['message'] ?? '');
         $product_id = 0;
         $source = 'cf7';
