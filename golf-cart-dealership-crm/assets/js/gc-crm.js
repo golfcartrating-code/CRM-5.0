@@ -11,6 +11,18 @@ jQuery(function ($) {
         $(selector).removeClass('open');
     }
 
+    function downloadCsv(filename, content) {
+        var blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
     $(document).on('click', '.gc-tab', function () {
         var tab = $(this).data('tab');
         $('.gc-tab').removeClass('active');
@@ -190,6 +202,30 @@ jQuery(function ($) {
         }, function (res) {
             if (res.success) {
                 $('#gc-settings-message').addClass('active');
+                location.reload();
+            }
+        });
+    });
+
+    $(document).on('click', '#gc-export-leads', function () {
+        crmAjax({
+            action: 'gc_export_leads_csv',
+            nonce: gcCrmData.nonce
+        }, function (res) {
+            if (res.success) {
+                downloadCsv(res.data.filename, res.data.content);
+                location.reload();
+            }
+        });
+    });
+
+    $(document).on('click', '#gc-export-contacts', function () {
+        crmAjax({
+            action: 'gc_export_contacts_csv',
+            nonce: gcCrmData.nonce
+        }, function (res) {
+            if (res.success) {
+                downloadCsv(res.data.filename, res.data.content);
                 location.reload();
             }
         });

@@ -35,6 +35,8 @@ class GC_Dealership_CRM {
         add_action('wp_ajax_gc_delete_contact', [$this, 'ajax_delete_contact']);
 
         add_action('wp_ajax_gc_save_settings', [$this, 'ajax_save_settings']);
+        add_action('wp_ajax_gc_export_leads_csv', [$this, 'ajax_export_leads_csv']);
+        add_action('wp_ajax_gc_export_contacts_csv', [$this, 'ajax_export_contacts_csv']);
 
         add_action('wp_ajax_gc_submit_wc_inquiry', [$this, 'ajax_submit_wc_inquiry']);
         add_action('wp_ajax_nopriv_gc_submit_wc_inquiry', [$this, 'ajax_submit_wc_inquiry']);
@@ -73,6 +75,8 @@ class GC_Dealership_CRM {
             phone VARCHAR(40) DEFAULT '',
             status VARCHAR(40) NOT NULL DEFAULT 'new_leads',
             source VARCHAR(60) DEFAULT 'manual',
+            product_id BIGINT UNSIGNED DEFAULT NULL,
+            product_name VARCHAR(255) DEFAULT '',
             message TEXT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -192,6 +196,11 @@ class GC_Dealership_CRM {
 
         $contact_id = $this->create_contact_if_missing($first_name, $last_name, $email, $phone);
 
+        $product_name = '';
+        if ($product_id > 0) {
+            $product_name = sanitize_text_field(get_the_title($product_id));
+        }
+
         $wpdb->insert(
             $leads_table,
             [
@@ -202,9 +211,11 @@ class GC_Dealership_CRM {
                 'phone'       => $phone,
                 'status'      => $this->normalize_status($status),
                 'source'      => sanitize_text_field($source),
+                'product_id'  => $product_id > 0 ? $product_id : null,
+                'product_name'=> $product_name,
                 'message'     => sanitize_textarea_field($message),
             ],
-            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s']
         );
 
         $lead_id = (int) $wpdb->insert_id;
@@ -349,6 +360,7 @@ class GC_Dealership_CRM {
                     <h3>Lead Pipeline</h3>
                     <div class="gc-header-actions">
                         <button class="gc-btn" id="gc-open-add-lead">Add Lead</button>
+                        <button class="gc-btn" id="gc-export-leads">Export Leads CSV</button>
                     </div>
                 </div>
 
@@ -374,6 +386,9 @@ class GC_Dealership_CRM {
             <div class="gc-panel" id="gc-panel-contacts">
                 <div class="gc-card">
                     <h3>Contacts</h3>
+                    <div class="gc-header-actions">
+                        <button class="gc-btn" id="gc-export-contacts">Export Contacts CSV</button>
+                    </div>
                     <table class="gc-table">
                         <thead>
                         <tr><th>First Name</th><th>Last Name</th><th>Email</th><th>Phone</th><th>Actions</th></tr>
@@ -736,6 +751,58 @@ class GC_Dealership_CRM {
         wp_send_json_success(['saved' => true]);
     }
 
+    public function ajax_export_leads_csv() {
+        global $wpdb;
+        $this->verify_ajax_nonce();
+        if (!$this->user_can_manage_crm()) {
+            wp_send_json_error(['message' => 'Unauthorized']);
+        }
+
+        $rows = $wpdb->get_results("SELECT id, first_name, last_name, email, phone, status, source, product_name, message, created_at FROM {$wpdb->prefix}gc_crm_leads ORDER BY id DESC", ARRAY_A);
+        $csv_lines = [];
+        $csv_lines[] = '"ID","First Name","Last Name","Email","Phone","Status","Source","Product Name","Message","Created At"';
+
+        foreach ($rows as $row) {
+            $line = [];
+            foreach ($row as $value) {
+                $escaped = str_replace('"', '""', (string) $value);
+                $line[] = '"' . $escaped . '"';
+            }
+            $csv_lines[] = implode(',', $line);
+        }
+
+        wp_send_json_success([
+            'filename' => 'gc-crm-leads-' . gmdate('Y-m-d-H-i-s') . '.csv',
+            'content'  => implode("\n", $csv_lines),
+        ]);
+    }
+
+    public function ajax_export_contacts_csv() {
+        global $wpdb;
+        $this->verify_ajax_nonce();
+        if (!$this->user_can_manage_crm()) {
+            wp_send_json_error(['message' => 'Unauthorized']);
+        }
+
+        $rows = $wpdb->get_results("SELECT id, first_name, last_name, email, phone, created_at FROM {$wpdb->prefix}gc_crm_contacts ORDER BY id DESC", ARRAY_A);
+        $csv_lines = [];
+        $csv_lines[] = '"ID","First Name","Last Name","Email","Phone","Created At"';
+
+        foreach ($rows as $row) {
+            $line = [];
+            foreach ($row as $value) {
+                $escaped = str_replace('"', '""', (string) $value);
+                $line[] = '"' . $escaped . '"';
+            }
+            $csv_lines[] = implode(',', $line);
+        }
+
+        wp_send_json_success([
+            'filename' => 'gc-crm-contacts-' . gmdate('Y-m-d-H-i-s') . '.csv',
+            'content'  => implode("\n", $csv_lines),
+        ]);
+    }
+
     public function render_wc_button() {
         if (!class_exists('WPCF7_ContactForm')) {
             return;
@@ -816,6 +883,15 @@ class GC_Dealership_CRM {
         }
 
         $posted_data = $submission->get_posted_data();
+        $container_post_id = absint($posted_data['_wpcf7_container_post'] ?? 0);
+        $message = sanitize_textarea_field($posted_data['your-message'] ?? $posted_data['message'] ?? '');
+        $product_id = 0;
+        $source = 'cf7';
+
+        if ($container_post_id > 0 && get_post_type($container_post_id) === 'product') {
+            $product_id = $container_post_id;
+            $source = 'woocommerce';
+        }
 
         $first_name = sanitize_text_field($posted_data['first-name'] ?? $posted_data['first_name'] ?? $posted_data['your-name'] ?? '');
         $last_name = sanitize_text_field($posted_data['last-name'] ?? $posted_data['last_name'] ?? '');
@@ -832,7 +908,7 @@ class GC_Dealership_CRM {
             return;
         }
 
-        $this->create_lead($first_name, $last_name, $email, $phone, 'new_leads', 'cf7');
+        $this->create_lead($first_name, $last_name, $email, $phone, 'new_leads', $source, $message, $product_id);
     }
 }
 
