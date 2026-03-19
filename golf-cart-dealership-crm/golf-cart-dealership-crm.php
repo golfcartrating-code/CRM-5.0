@@ -826,9 +826,20 @@ class GC_Dealership_CRM {
             $csv_lines[] = implode(',', $line);
         }
 
+        $filename = 'gc-crm-leads-' . gmdate('Y-m-d-H-i-s') . '.csv';
+        $content = implode("\n", $csv_lines);
+
+        if (isset($_POST['download']) && sanitize_text_field(wp_unslash($_POST['download'])) === '1') {
+            nocache_headers();
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+            wp_die();
+        }
+
         wp_send_json_success([
-            'filename' => 'gc-crm-leads-' . gmdate('Y-m-d-H-i-s') . '.csv',
-            'content'  => implode("\n", $csv_lines),
+            'filename' => $filename,
+            'content'  => $content,
         ]);
     }
 
@@ -852,9 +863,20 @@ class GC_Dealership_CRM {
             $csv_lines[] = implode(',', $line);
         }
 
+        $filename = 'gc-crm-contacts-' . gmdate('Y-m-d-H-i-s') . '.csv';
+        $content = implode("\n", $csv_lines);
+
+        if (isset($_POST['download']) && sanitize_text_field(wp_unslash($_POST['download'])) === '1') {
+            nocache_headers();
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+            wp_die();
+        }
+
         wp_send_json_success([
-            'filename' => 'gc-crm-contacts-' . gmdate('Y-m-d-H-i-s') . '.csv',
-            'content'  => implode("\n", $csv_lines),
+            'filename' => $filename,
+            'content'  => $content,
         ]);
     }
 

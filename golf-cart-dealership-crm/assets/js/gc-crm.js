@@ -23,6 +23,26 @@ jQuery(function ($) {
         URL.revokeObjectURL(url);
     }
 
+    function submitCsvExport(actionName) {
+        var ajaxUrl = (window.gcCrmData && gcCrmData.ajaxurl) ? gcCrmData.ajaxurl : (window.gcWcAjaxUrl || ajaxurl);
+        var nonce = (window.gcCrmData && gcCrmData.nonce) ? gcCrmData.nonce : '';
+        var form = $('<form>', {
+            method: 'POST',
+            action: ajaxUrl,
+            style: 'display:none;'
+        });
+
+        form.append($('<input>', { type: 'hidden', name: 'action', value: actionName }));
+        form.append($('<input>', { type: 'hidden', name: 'nonce', value: nonce }));
+        form.append($('<input>', { type: 'hidden', name: 'download', value: '1' }));
+        $('body').append(form);
+        form.trigger('submit');
+        setTimeout(function () {
+            form.remove();
+            location.reload();
+        }, 600);
+    }
+
     $(document).on('click', '.gc-tab', function () {
         var tab = $(this).data('tab');
         $('.gc-tab').removeClass('active');
@@ -210,31 +230,11 @@ jQuery(function ($) {
     });
 
     $(document).on('click', '#gc-export-leads', function () {
-        crmAjax({
-            action: 'gc_export_leads_csv',
-            nonce: gcCrmData.nonce
-        }, function (res) {
-            if (res.success) {
-                downloadCsv(res.data.filename, res.data.content);
-                setTimeout(function () {
-                    location.reload();
-                }, 600);
-            }
-        });
+        submitCsvExport('gc_export_leads_csv');
     });
 
     $(document).on('click', '#gc-export-contacts', function () {
-        crmAjax({
-            action: 'gc_export_contacts_csv',
-            nonce: gcCrmData.nonce
-        }, function (res) {
-            if (res.success) {
-                downloadCsv(res.data.filename, res.data.content);
-                setTimeout(function () {
-                    location.reload();
-                }, 600);
-            }
-        });
+        submitCsvExport('gc_export_contacts_csv');
     });
 
     $(document).on('dragstart', '.gc-lead-card', function (e) {
