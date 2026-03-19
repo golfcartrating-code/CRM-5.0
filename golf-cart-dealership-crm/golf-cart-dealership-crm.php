@@ -37,6 +37,8 @@ class GC_Dealership_CRM {
         add_action('wp_ajax_gc_save_settings', [$this, 'ajax_save_settings']);
         add_action('wp_ajax_gc_export_leads_csv', [$this, 'ajax_export_leads_csv']);
         add_action('wp_ajax_gc_export_contacts_csv', [$this, 'ajax_export_contacts_csv']);
+        add_action('admin_post_gc_export_leads_csv', [$this, 'download_leads_csv']);
+        add_action('admin_post_gc_export_contacts_csv', [$this, 'download_contacts_csv']);
 
         add_action('wp_ajax_gc_submit_wc_inquiry', [$this, 'ajax_submit_wc_inquiry']);
         add_action('wp_ajax_nopriv_gc_submit_wc_inquiry', [$this, 'ajax_submit_wc_inquiry']);
@@ -346,6 +348,8 @@ class GC_Dealership_CRM {
         $selected_cf7 = (int) get_option('gc_crm_cf7_form_id', 0);
         $notification_email = sanitize_email(get_option('gc_crm_notification_email', get_option('admin_email')));
         $product_options = $this->get_product_options();
+        $leads_export_url = wp_nonce_url(admin_url('admin-post.php?action=gc_export_leads_csv'), 'gc_export_csv');
+        $contacts_export_url = wp_nonce_url(admin_url('admin-post.php?action=gc_export_contacts_csv'), 'gc_export_csv');
 
         ob_start();
         ?>
@@ -389,7 +393,7 @@ class GC_Dealership_CRM {
                     <h3>Lead Pipeline</h3>
                     <div class="gc-header-actions">
                         <button class="gc-btn" id="gc-open-add-lead">Add Lead</button>
-                        <button type="button" class="gc-btn" id="gc-export-leads">Export Leads CSV</button>
+                        <a class="gc-btn" id="gc-export-leads" href="<?php echo esc_url($leads_export_url); ?>">Export Leads CSV</a>
                     </div>
                 </div>
 
@@ -416,7 +420,7 @@ class GC_Dealership_CRM {
                 <div class="gc-card">
                     <h3>Contacts</h3>
                     <div class="gc-header-actions">
-                        <button type="button" class="gc-btn" id="gc-export-contacts">Export Contacts CSV</button>
+                        <a class="gc-btn" id="gc-export-contacts" href="<?php echo esc_url($contacts_export_url); ?>">Export Contacts CSV</a>
                     </div>
                     <table class="gc-table">
                         <thead>
@@ -843,6 +847,14 @@ class GC_Dealership_CRM {
         ]);
     }
 
+    public function download_leads_csv() {
+        if (!$this->user_can_manage_crm()) {
+            wp_die(esc_html__('Unauthorized', 'gc-crm'));
+        }
+        check_admin_referer('gc_export_csv');
+        $this->output_leads_csv();
+    }
+
     public function ajax_export_contacts_csv() {
         global $wpdb;
         $this->verify_ajax_nonce();
@@ -878,6 +890,58 @@ class GC_Dealership_CRM {
             'filename' => $filename,
             'content'  => $content,
         ]);
+    }
+
+    public function download_contacts_csv() {
+        if (!$this->user_can_manage_crm()) {
+            wp_die(esc_html__('Unauthorized', 'gc-crm'));
+        }
+        check_admin_referer('gc_export_csv');
+        $this->output_contacts_csv();
+    }
+
+    private function output_leads_csv() {
+        global $wpdb;
+        $rows = $wpdb->get_results("SELECT id, first_name, last_name, email, phone, status, source, product_name, message, created_at FROM {$wpdb->prefix}gc_crm_leads ORDER BY id DESC", ARRAY_A);
+        $csv_lines = [];
+        $csv_lines[] = '"ID","First Name","Last Name","Email","Phone","Status","Source","Product Name","Message","Created At"';
+        foreach ($rows as $row) {
+            $line = [];
+            foreach ($row as $value) {
+                $escaped = str_replace('"', '""', (string) $value);
+                $line[] = '"' . $escaped . '"';
+            }
+            $csv_lines[] = implode(',', $line);
+        }
+        $filename = 'gc-crm-leads-' . gmdate('Y-m-d-H-i-s') . '.csv';
+        $content = implode("\n", $csv_lines);
+        nocache_headers();
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        wp_die();
+    }
+
+    private function output_contacts_csv() {
+        global $wpdb;
+        $rows = $wpdb->get_results("SELECT id, first_name, last_name, email, phone, created_at FROM {$wpdb->prefix}gc_crm_contacts ORDER BY id DESC", ARRAY_A);
+        $csv_lines = [];
+        $csv_lines[] = '"ID","First Name","Last Name","Email","Phone","Created At"';
+        foreach ($rows as $row) {
+            $line = [];
+            foreach ($row as $value) {
+                $escaped = str_replace('"', '""', (string) $value);
+                $line[] = '"' . $escaped . '"';
+            }
+            $csv_lines[] = implode(',', $line);
+        }
+        $filename = 'gc-crm-contacts-' . gmdate('Y-m-d-H-i-s') . '.csv';
+        $content = implode("\n", $csv_lines);
+        nocache_headers();
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        wp_die();
     }
 
     public function render_wc_button() {
@@ -979,6 +1043,15 @@ class GC_Dealership_CRM {
         } elseif ($posted_product_id > 0 && get_post_type($posted_product_id) === 'product') {
             $product_id = $posted_product_id;
             $source = 'woocommerce';
+        } else {
+            $referer = wp_get_referer();
+            if ($referer) {
+                $referer_post_id = url_to_postid($referer);
+                if ($referer_post_id > 0 && get_post_type($referer_post_id) === 'product') {
+                    $product_id = $referer_post_id;
+                    $source = 'woocommerce';
+                }
+            }
         }
 
         $first_name = sanitize_text_field($posted_data['first-name'] ?? $posted_data['first_name'] ?? $posted_data['your-name'] ?? '');

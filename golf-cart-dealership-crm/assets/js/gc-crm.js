@@ -23,23 +23,6 @@ jQuery(function ($) {
         URL.revokeObjectURL(url);
     }
 
-    function submitCsvExport(actionName) {
-        var ajaxUrl = (window.gcCrmData && gcCrmData.ajaxurl) ? gcCrmData.ajaxurl : (window.gcWcAjaxUrl || ajaxurl);
-        var nonce = (window.gcCrmData && gcCrmData.nonce) ? gcCrmData.nonce : '';
-        var url = ajaxUrl + '?action=' + encodeURIComponent(actionName) + '&nonce=' + encodeURIComponent(nonce) + '&download=1&ts=' + Date.now();
-        var link = document.createElement('a');
-        link.href = url;
-        link.target = '_blank';
-        link.rel = 'noopener';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        setTimeout(function () {
-            location.reload();
-        }, 1000);
-    }
-
     function injectWcProductIntoCf7() {
         var context = $('#gc-wc-context');
         if (!context.length) {
@@ -253,16 +236,6 @@ jQuery(function ($) {
                 location.reload();
             }
         });
-    });
-
-    $(document).on('click', '#gc-export-leads', function (e) {
-        e.preventDefault();
-        submitCsvExport('gc_export_leads_csv');
-    });
-
-    $(document).on('click', '#gc-export-contacts', function (e) {
-        e.preventDefault();
-        submitCsvExport('gc_export_contacts_csv');
     });
 
     $(document).on('dragstart', '.gc-lead-card', function (e) {
