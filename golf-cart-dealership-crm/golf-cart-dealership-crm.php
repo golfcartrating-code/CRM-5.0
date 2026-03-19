@@ -389,7 +389,7 @@ class GC_Dealership_CRM {
                     <h3>Lead Pipeline</h3>
                     <div class="gc-header-actions">
                         <button class="gc-btn" id="gc-open-add-lead">Add Lead</button>
-                        <button class="gc-btn" id="gc-export-leads">Export Leads CSV</button>
+                        <button type="button" class="gc-btn" id="gc-export-leads">Export Leads CSV</button>
                     </div>
                 </div>
 
@@ -416,7 +416,7 @@ class GC_Dealership_CRM {
                 <div class="gc-card">
                     <h3>Contacts</h3>
                     <div class="gc-header-actions">
-                        <button class="gc-btn" id="gc-export-contacts">Export Contacts CSV</button>
+                        <button type="button" class="gc-btn" id="gc-export-contacts">Export Contacts CSV</button>
                     </div>
                     <table class="gc-table">
                         <thead>

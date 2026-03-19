@@ -26,10 +26,23 @@ jQuery(function ($) {
     function submitCsvExport(actionName) {
         var ajaxUrl = (window.gcCrmData && gcCrmData.ajaxurl) ? gcCrmData.ajaxurl : (window.gcWcAjaxUrl || ajaxurl);
         var nonce = (window.gcCrmData && gcCrmData.nonce) ? gcCrmData.nonce : '';
+        var frameName = 'gc-crm-csv-download-frame';
+        var frame = $('#' + frameName);
+        if (!frame.length) {
+            frame = $('<iframe>', {
+                id: frameName,
+                name: frameName,
+                style: 'display:none;'
+            });
+            $('body').append(frame);
+        }
+
         var form = $('<form>', {
             method: 'POST',
             action: ajaxUrl,
-            style: 'display:none;'
+            target: frameName,
+            style: 'display:none;',
+            enctype: 'application/x-www-form-urlencoded'
         });
 
         form.append($('<input>', { type: 'hidden', name: 'action', value: actionName }));
@@ -229,11 +242,13 @@ jQuery(function ($) {
         });
     });
 
-    $(document).on('click', '#gc-export-leads', function () {
+    $(document).on('click', '#gc-export-leads', function (e) {
+        e.preventDefault();
         submitCsvExport('gc_export_leads_csv');
     });
 
-    $(document).on('click', '#gc-export-contacts', function () {
+    $(document).on('click', '#gc-export-contacts', function (e) {
+        e.preventDefault();
         submitCsvExport('gc_export_contacts_csv');
     });
 
